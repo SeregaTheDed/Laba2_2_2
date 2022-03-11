@@ -4,8 +4,9 @@ class Program
 {
     static private Queue<FileInfo> files = new Queue<FileInfo>();
 
-    static bool RecursyEndBool = false;
-    static bool SchetEndBool = false;
+    static int RecursyEndBool = 0;
+    static int SchetEndBool = 0;
+    readonly static int DesiredNumberOfThreads = Environment.ProcessorCount / 2;
 
     static void Main(string[] args)
     {
@@ -16,13 +17,18 @@ class Program
         //    catalog = (string)xmlSerializer.Deserialize(stream);
         //}
         DirectoryInfo directoryInfo = new DirectoryInfo(catalog);
-        ThreadPool.QueueUserWorkItem(Obolochka, directoryInfo, true);
-        ThreadPool.QueueUserWorkItem(DequeueFilesQueue);
-        //for (int i = 0; i < Environment.ProcessorCount-1; i++)
-        //{
-        //    ThreadPool.QueueUserWorkItem(DequeueFilesQueue);
-        //}
-        while (!SchetEndBool && !RecursyEndBool)
+        //ThreadPool.QueueUserWorkItem(Obolochka, directoryInfo, true);
+        for (int i = 0; i < DesiredNumberOfThreads; i++)
+        {
+            ThreadPool.QueueUserWorkItem(Obolochka, directoryInfo, true);
+        }
+        //ThreadPool.QueueUserWorkItem(DequeueFilesQueue);
+        for (int i = 0; i < DesiredNumberOfThreads; i++)
+        {
+            ThreadPool.QueueUserWorkItem(DequeueFilesQueue);
+        }
+        while (SchetEndBool != DesiredNumberOfThreads && 
+            RecursyEndBool != DesiredNumberOfThreads)
         {
             Thread.Sleep(1000);
         }
@@ -32,8 +38,8 @@ class Program
     static void Obolochka(DirectoryInfo directoryInfo)
     {
         EnqueueFilesQueue(directoryInfo);
-        RecursyEndBool = true;
-        Console.WriteLine("Рекурсия окончена");
+        RecursyEndBool++;
+        //Console.WriteLine("Рекурсия окончена");
     }
 
 
@@ -45,7 +51,7 @@ class Program
             {
                 files.Enqueue(file);
             }
-            Console.WriteLine(file.Name + "++++++++++++++++++++++++++++++++++++++++++++");
+            //Console.WriteLine(file.Name);
         }
         foreach (var directory in directoryInfo.GetDirectories())
         {
@@ -61,18 +67,34 @@ class Program
             FileInfo file;
             lock (files)
             {
-                if (RecursyEndBool && files.Count == 0)
+                if (RecursyEndBool != 0 && files.Count == 0)
                 {
-                    SchetEndBool = true;
-                    Console.WriteLine("Счет окончен");
+                    SchetEndBool++;
+                    //Console.WriteLine("Счет окончен");
                     return; 
                 }
                 if (files.Count == 0)
                     continue;
                 file = files.Dequeue();
             }
-            var result = file.Length;
-            Console.WriteLine($"{file.Name}----------------------------------------------");
+            try
+            {
+                var bytes = File.ReadAllBytes(file.FullName);
+                if (bytes.Length > 2)
+                {
+                    Console.WriteLine($"{file.Name} - {bytes[0] + bytes[1] + bytes[^1]}");
+                }
+                else
+                {
+                    Console.WriteLine($"{file.Name} - Размер слишком мал");
+                }
+            }
+            catch (Exception)
+            {
+
+                Console.WriteLine($"{file.Name} - Размер слишком большой");
+            }
+            
             
         }
         
