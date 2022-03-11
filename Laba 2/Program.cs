@@ -4,7 +4,6 @@ class Program
 {
     static private Queue<FileInfo> files = new Queue<FileInfo>();
 
-    static object RecursyEnd = new();
     static bool RecursyEndBool = false;
     static bool SchetEndBool = false;
 
@@ -32,10 +31,7 @@ class Program
     }
     static void Obolochka(DirectoryInfo directoryInfo)
     {
-        lock (RecursyEnd)
-        {
-            EnqueueFilesQueue(directoryInfo);
-        }
+        EnqueueFilesQueue(directoryInfo);
         RecursyEndBool = true;
         Console.WriteLine("Рекурсия окончена");
     }
