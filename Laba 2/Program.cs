@@ -4,33 +4,29 @@ class Program
 {
     static private Queue<FileInfo> files = new Queue<FileInfo>();
 
-    static int RecursyEndBool = 0;
-    static int SchetEndBool = 0;
+    static int CurrentRecursyCount = 0;
+    static int CurrentSchetCount = 0;
     readonly static int DesiredNumberOfThreads = Environment.ProcessorCount / 2;
 
     static void Main(string[] args)
     {
-        string catalog = @"D:\Torrents";
-        //XmlSerializer xmlSerializer = new XmlSerializer(typeof(string));
-        //using (var stream = new StreamReader("file.xml"))
-        //{
-        //    catalog = (string)xmlSerializer.Deserialize(stream);
-        //}
+        string catalog = @"D:\bomb";
+
         DirectoryInfo directoryInfo = new DirectoryInfo(catalog);
-        //ThreadPool.QueueUserWorkItem(Obolochka, directoryInfo, true);
-        for (int i = 0; i < DesiredNumberOfThreads; i++)
-        {
-            ThreadPool.QueueUserWorkItem(Obolochka, directoryInfo, true);
-        }
-        //ThreadPool.QueueUserWorkItem(DequeueFilesQueue);
+        CurrentRecursyCount++;
+
+        ThreadPool.QueueUserWorkItem(Obolochka, directoryInfo, true);
         for (int i = 0; i < DesiredNumberOfThreads; i++)
         {
             ThreadPool.QueueUserWorkItem(DequeueFilesQueue);
         }
-        while (SchetEndBool != DesiredNumberOfThreads && 
-            RecursyEndBool != DesiredNumberOfThreads)
+
+        while (CurrentSchetCount != 0 ||
+            CurrentRecursyCount != 0)
         {
             Thread.Sleep(1000);
+            Console.WriteLine("Рекурсий:" + CurrentRecursyCount);
+            Console.WriteLine("Счет" + CurrentSchetCount);
         }
         //Thread.Sleep(1000);
         Console.WriteLine("------------------Программа завершена------------------");
@@ -38,39 +34,52 @@ class Program
     static void Obolochka(DirectoryInfo directoryInfo)
     {
         EnqueueFilesQueue(directoryInfo);
-        RecursyEndBool++;
-        //Console.WriteLine("Рекурсия окончена");
     }
 
 
     static void EnqueueFilesQueue(DirectoryInfo directoryInfo)
     {
-        foreach (var file in directoryInfo.GetFiles())
+        try
         {
-            lock (files)
+            foreach (var file in directoryInfo.GetFiles())
             {
-                files.Enqueue(file);
+                lock (files)
+                {
+                    files.Enqueue(file);
+                }
             }
-            //Console.WriteLine(file.Name);
+            foreach (var directory in directoryInfo.GetDirectories())
+            //!!!Насколько корректно для каждого узла дерева создавать отдельный поток
+            {
+                ThreadPool.QueueUserWorkItem(EnqueueFilesQueue, directory, true);
+                CurrentRecursyCount++;
+            }
         }
-        foreach (var directory in directoryInfo.GetDirectories())
+        catch (UnauthorizedAccessException)
         {
-            EnqueueFilesQueue(directory);
+            Console.WriteLine(directoryInfo + "Доступ запрещен");
         }
+        catch(Exception e) { Console.WriteLine("FLAG!!!" + e); }
+        finally
+        {
+            CurrentRecursyCount--;
+        }
+        
+        
     }
 
     static void DequeueFilesQueue(object p)
     {
+        CurrentSchetCount++;
         while (true)
         {
             
             FileInfo file;
             lock (files)
             {
-                if (RecursyEndBool != 0 && files.Count == 0)
+                if (CurrentRecursyCount == 0 && files.Count == 0)
                 {
-                    SchetEndBool++;
-                    //Console.WriteLine("Счет окончен");
+                    CurrentSchetCount--;
                     return; 
                 }
                 if (files.Count == 0)
@@ -91,7 +100,6 @@ class Program
             }
             catch (Exception)
             {
-
                 Console.WriteLine($"{file.Name} - Размер слишком большой");
             }
             
