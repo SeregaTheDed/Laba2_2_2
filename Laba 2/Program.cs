@@ -1,10 +1,11 @@
-﻿using System.Xml.Serialization;
+﻿using System.Diagnostics;
+using System.Xml.Serialization;
 
 class Program
 {
     static private Queue<FileInfo> files = new Queue<FileInfo>();
 
-    static int CurrentRecursyCount = 0;
+    static int CurrentTraversingCount = 0;
     static int CurrentSchetCount = 0;
 
     static void Main(string[] args)
@@ -13,7 +14,7 @@ class Program
         //string catalog = @"C:\Users\shtan\OneDrive\Рабочий стол\лаба3\лаба 3 задание 4";
 
         DirectoryInfo directoryInfo = new DirectoryInfo(catalog);
-        CurrentRecursyCount++;
+        CurrentTraversingCount++;
 
         ThreadPool.QueueUserWorkItem(Obolochka, directoryInfo, true);
         for (int i = 0; i < Environment.ProcessorCount-1; i++)
@@ -22,10 +23,10 @@ class Program
         }
 
         while (CurrentSchetCount != 0 ||
-            CurrentRecursyCount != 0)
+            CurrentTraversingCount != 0)
         {
             Thread.Sleep(1000);
-            //Console.WriteLine("Рекурсий:" + CurrentRecursyCount);
+            //Console.WriteLine("Обходов:" + CurrentTraversingCount);
             //Console.WriteLine("Счет" + CurrentSchetCount);
         }
         //Thread.Sleep(1000);
@@ -52,18 +53,34 @@ class Program
                         files.Enqueue(file);
                     }
                 }
-                foreach (var directory in queue.Dequeue().GetDirectories())
-                {
-                    queue.Enqueue(directory);
-                }
             }
             catch (UnauthorizedAccessException)
             {
                 Console.WriteLine(directoryInfo + "Доступ запрещен");
             }
-            catch (Exception e) { Console.WriteLine("FLAG!!!" + e); }
+            catch (Exception e) { Debug.WriteLine(e.Message); }
+            try
+            {
+                foreach (var directory in queue.Dequeue().GetDirectories())
+                {
+                    try
+                    {
+                        queue.Enqueue(directory);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine(ex.Message);
+                    }
+                    
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.Message);
+            }
+            
         }
-        CurrentRecursyCount--;
+        CurrentTraversingCount--;
         
     }
 
@@ -76,7 +93,7 @@ class Program
             FileInfo file;
             lock (files)
             {
-                if (CurrentRecursyCount == 0 && files.Count == 0)
+                if (CurrentTraversingCount == 0 && files.Count == 0)
                 {
                     CurrentSchetCount--;
                     return; 
