@@ -6,17 +6,17 @@ class Program
 
     static int CurrentRecursyCount = 0;
     static int CurrentSchetCount = 0;
-    readonly static int DesiredNumberOfThreads = Environment.ProcessorCount / 2;
 
     static void Main(string[] args)
     {
-        string catalog = @"D:\bomb";
+        string catalog = @"D:\bomb\MyBomber";//D:\bomb
+        //string catalog = @"C:\Users\shtan\OneDrive\Рабочий стол\лаба3\лаба 3 задание 4";
 
         DirectoryInfo directoryInfo = new DirectoryInfo(catalog);
         CurrentRecursyCount++;
 
         ThreadPool.QueueUserWorkItem(Obolochka, directoryInfo, true);
-        for (int i = 0; i < DesiredNumberOfThreads; i++)
+        for (int i = 0; i < Environment.ProcessorCount-1; i++)
         {
             ThreadPool.QueueUserWorkItem(DequeueFilesQueue);
         }
@@ -25,8 +25,8 @@ class Program
             CurrentRecursyCount != 0)
         {
             Thread.Sleep(1000);
-            Console.WriteLine("Рекурсий:" + CurrentRecursyCount);
-            Console.WriteLine("Счет" + CurrentSchetCount);
+            //Console.WriteLine("Рекурсий:" + CurrentRecursyCount);
+            //Console.WriteLine("Счет" + CurrentSchetCount);
         }
         //Thread.Sleep(1000);
         Console.WriteLine("------------------Программа завершена------------------");
@@ -39,32 +39,31 @@ class Program
 
     static void EnqueueFilesQueue(DirectoryInfo directoryInfo)
     {
-        try
+        Queue<DirectoryInfo> queue = new Queue<DirectoryInfo>();
+        queue.Enqueue(directoryInfo);
+        while (queue.Count != 0)
         {
-            foreach (var file in directoryInfo.GetFiles())
+            try
             {
-                lock (files)
+                foreach (var file in queue.Peek().GetFiles())
                 {
-                    files.Enqueue(file);
+                    lock (files)
+                    {
+                        files.Enqueue(file);
+                    }
+                }
+                foreach (var directory in queue.Dequeue().GetDirectories())
+                {
+                    queue.Enqueue(directory);
                 }
             }
-            foreach (var directory in directoryInfo.GetDirectories())
-            //!!!Насколько корректно для каждого узла дерева создавать отдельный поток
+            catch (UnauthorizedAccessException)
             {
-                ThreadPool.QueueUserWorkItem(EnqueueFilesQueue, directory, true);
-                CurrentRecursyCount++;
+                Console.WriteLine(directoryInfo + "Доступ запрещен");
             }
+            catch (Exception e) { Console.WriteLine("FLAG!!!" + e); }
         }
-        catch (UnauthorizedAccessException)
-        {
-            Console.WriteLine(directoryInfo + "Доступ запрещен");
-        }
-        catch(Exception e) { Console.WriteLine("FLAG!!!" + e); }
-        finally
-        {
-            CurrentRecursyCount--;
-        }
-        
+        CurrentRecursyCount--;
         
     }
 
