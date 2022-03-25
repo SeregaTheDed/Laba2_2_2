@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Security.AccessControl;
 using System.Xml.Serialization;
 
 class Program
@@ -10,14 +11,14 @@ class Program
 
     static void Main(string[] args)
     {
-        string catalog = @"D:\bomb\MyBomber";//D:\bomb
+        string catalog = @"D:\bomb";//D:\bomb
         //string catalog = @"C:\Users\shtan\OneDrive\Рабочий стол\лаба3\лаба 3 задание 4";
 
         DirectoryInfo directoryInfo = new DirectoryInfo(catalog);
         CurrentTraversingCount++;
 
-        ThreadPool.QueueUserWorkItem(Obolochka, directoryInfo, true);
-        for (int i = 0; i < Environment.ProcessorCount-1; i++)
+        ThreadPool.QueueUserWorkItem(EnqueueFilesQueue, directoryInfo, true);
+        for (int i = 0; i < Environment.ProcessorCount - 1; i++)
         {
             ThreadPool.QueueUserWorkItem(DequeueFilesQueue);
         }
@@ -32,10 +33,6 @@ class Program
         //Thread.Sleep(1000);
         Console.WriteLine("------------------Программа завершена------------------");
     }
-    static void Obolochka(DirectoryInfo directoryInfo)
-    {
-        EnqueueFilesQueue(directoryInfo);
-    }
 
 
     static void EnqueueFilesQueue(DirectoryInfo directoryInfo)
@@ -44,6 +41,8 @@ class Program
         queue.Enqueue(directoryInfo);
         while (queue.Count != 0)
         {
+            //https://translated.turbopages.org/proxy_u/en-ru.ru.baae2c3f-623d2764-5dd05cde-74722d776562/https/stackoverflow.com/questions/265953/how-can-you-easily-check-if-access-is-denied-for-a-file-in-net
+            //https://stackoverflow.com/questions/3507862/duplicate-getaccessrules-filesystemaccessrule-entries
             try
             {
                 foreach (var file in queue.Peek().GetFiles())
@@ -54,34 +53,18 @@ class Program
                     }
                 }
             }
-            catch (UnauthorizedAccessException)
+            catch
             {
                 Console.WriteLine(directoryInfo + "Доступ запрещен");
             }
-            catch (Exception e) { Debug.WriteLine(e.Message); }
-            try
+
+            foreach (var directory in queue.Dequeue().GetDirectories())
             {
-                foreach (var directory in queue.Dequeue().GetDirectories())
-                {
-                    try
-                    {
-                        queue.Enqueue(directory);
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine(ex.Message);
-                    }
-                    
-                }
+                queue.Enqueue(directory);
             }
-            catch (Exception ex)
-            {
-                Debug.WriteLine(ex.Message);
-            }
-            
         }
         CurrentTraversingCount--;
-        
+
     }
 
     static void DequeueFilesQueue(object p)
@@ -89,39 +72,37 @@ class Program
         CurrentSchetCount++;
         while (true)
         {
-            
+
             FileInfo file;
             lock (files)
             {
                 if (CurrentTraversingCount == 0 && files.Count == 0)
                 {
                     CurrentSchetCount--;
-                    return; 
+                    return;
                 }
                 if (files.Count == 0)
                     continue;
                 file = files.Dequeue();
             }
-            try
-            {
-                var bytes = File.ReadAllBytes(file.FullName);
-                if (bytes.Length > 2)
-                {
-                    Console.WriteLine($"{file.Name} - {bytes[0] + bytes[1] + bytes[^1]}");
-                }
-                else
-                {
-                    Console.WriteLine($"{file.Name} - Размер слишком мал");
-                }
-            }
-            catch (Exception)
+            if (file.Length > 2147483647)
             {
                 Console.WriteLine($"{file.Name} - Размер слишком большой");
+                continue;
             }
-            
-            
+            else if (file.Length <= 2)
+            {
+                Console.WriteLine($"{file.Name} - Размер слишком мал");
+            }
+            else
+            {
+                var bytes = File.ReadAllBytes(file.FullName);
+                Console.WriteLine($"{file.Name} - {bytes[0] + bytes[1] + bytes[^1]}");
+            }
         }
-        
+
+
     }
+
 }
 
